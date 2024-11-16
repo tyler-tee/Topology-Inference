@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Configuration
 EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
-OUTPUT_GRAPH = "network_topology_clustered.png"  # Output graph image
+OUTPUT_GRAPH = "network_topology_clustered_v2.png"  # Output graph image
 INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
 EXTERNAL_NODE = "External Network"
 
@@ -53,6 +53,16 @@ def deduplicate_connections(connections):
                 seen.add((src, dest))
     return deduplicated
 
+def group_by_subnet(ip):
+    """
+    Groups IPs by their /24 subnet.
+    :param ip: IP address as a string
+    :return: Subnet string
+    """
+    if ip.startswith(INTERNAL_IP_PREFIX):
+        return '.'.join(ip.split('.')[:3]) + ".0/24"
+    return "External"
+
 def visualize_topology(connections, output_graph):
     """
     Visualize the network topology using networkx.
@@ -68,7 +78,15 @@ def visualize_topology(connections, output_graph):
     # Highlight key nodes based on degree centrality
     centrality = nx.degree_centrality(G)
     node_size = [300 + centrality[node] * 2000 for node in G.nodes()]
-    node_color = ['skyblue' if node != EXTERNAL_NODE else 'lightcoral' for node in G.nodes()]
+    node_color = [
+        'skyblue' if group_by_subnet(node) != "External" else 'lightcoral'
+        for node in G.nodes()
+    ]
+
+    # Subnet-based clustering
+    clusters = defaultdict(list)
+    for node in G.nodes():
+        clusters[group_by_subnet(node)].append(node)
 
     # Generate positions
     pos = nx.spring_layout(G, seed=42)  # Fixed layout for consistency
@@ -85,7 +103,7 @@ def visualize_topology(connections, output_graph):
     edge_labels = nx.get_edge_attributes(G, 'label')
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
 
-    plt.title("Clustered Network Topology")
+    plt.title("Clustered Network Topology with Subnets")
     plt.savefig(output_graph)
     plt.show()
 

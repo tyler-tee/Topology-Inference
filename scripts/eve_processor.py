@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Configuration
 EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
-OUTPUT_GRAPH = "network_topology_clustered_v2.png"  # Output graph image
+OUTPUT_GRAPH = "network_topology.png"  # Output graph image
 INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
 EXTERNAL_NODE = "External Network"
 

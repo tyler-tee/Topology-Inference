@@ -4,9 +4,9 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 # Configuration
-EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to your eve.json
-OUTPUT_GRAPH = "network_topology.png"        # Output graph image
-INTERNAL_IP_PREFIX = "192.168."             # Filter to include only internal traffic
+EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
+OUTPUT_GRAPH = "network_topology_improved.png"  # Output graph image
+INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
 
 def parse_eve_json(eve_log_path):
     """
@@ -55,16 +55,30 @@ def visualize_topology(connections, output_graph):
     :param output_graph: Path to save the output graph image
     """
     G = nx.Graph()
+
+    # Add nodes and edges
     for src, dest, proto in connections:
         G.add_edge(src, dest, label=proto)
 
+    # Adjust node size based on degree (heavily connected nodes are larger)
+    node_size = [G.degree(node) * 300 for node in G.nodes()]
+
+    # Generate positions
+    pos = nx.spring_layout(G, seed=42)  # Fixed layout for consistency
+
     # Draw the graph
     plt.figure(figsize=(12, 8))
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos, with_labels=True, node_size=1500, font_size=10, font_color="white", font_weight="bold")
+    nx.draw(
+        G, pos, with_labels=True,
+        node_size=node_size, node_color='skyblue',
+        font_size=8, font_color="black"
+    )
+
+    # Draw edge labels (optional: suppress if too cluttered)
     edge_labels = nx.get_edge_attributes(G, 'label')
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-    plt.title("Network Topology")
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
+
+    plt.title("Enhanced Network Topology")
     plt.savefig(output_graph)
     plt.show()
 
@@ -79,7 +93,7 @@ def main():
 
     # Visualize the topology
     visualize_topology(deduplicated_connections, OUTPUT_GRAPH)
-    print(f"Topology graph saved to {OUTPUT_GRAPH}")
+    print(f"Enhanced topology graph saved to {OUTPUT_GRAPH}")
 
 if __name__ == "__main__":
     main()

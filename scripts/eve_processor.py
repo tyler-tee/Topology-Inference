@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 
 # Configuration
 EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
-OUTPUT_GRAPH = "network_topology_improved.png"  # Output graph image
+OUTPUT_GRAPH = "network_topology_clustered.png"  # Output graph image
 INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
+EXTERNAL_NODE = "External Network"
 
 def parse_eve_json(eve_log_path):
     """
@@ -25,10 +26,14 @@ def parse_eve_json(eve_log_path):
                     dest_ip = event.get("dest_ip")
                     proto = event.get("proto")
                     if src_ip and dest_ip:
-                        # Filter only internal traffic
-                        if src_ip.startswith(INTERNAL_IP_PREFIX) or dest_ip.startswith(INTERNAL_IP_PREFIX):
+                        if src_ip.startswith(INTERNAL_IP_PREFIX) and dest_ip.startswith(INTERNAL_IP_PREFIX):
                             connections[src_ip].add((dest_ip, proto))
-                            devices.update([src_ip, dest_ip])
+                        else:  # Group external traffic
+                            if src_ip.startswith(INTERNAL_IP_PREFIX):
+                                connections[src_ip].add((EXTERNAL_NODE, proto))
+                            elif dest_ip.startswith(INTERNAL_IP_PREFIX):
+                                connections[dest_ip].add((EXTERNAL_NODE, proto))
+                        devices.update([src_ip, dest_ip])
     except FileNotFoundError:
         print(f"Error: {eve_log_path} not found.")
     return connections, devices
@@ -60,8 +65,10 @@ def visualize_topology(connections, output_graph):
     for src, dest, proto in connections:
         G.add_edge(src, dest, label=proto)
 
-    # Adjust node size based on degree (heavily connected nodes are larger)
-    node_size = [G.degree(node) * 300 for node in G.nodes()]
+    # Highlight key nodes based on degree centrality
+    centrality = nx.degree_centrality(G)
+    node_size = [300 + centrality[node] * 2000 for node in G.nodes()]
+    node_color = ['skyblue' if node != EXTERNAL_NODE else 'lightcoral' for node in G.nodes()]
 
     # Generate positions
     pos = nx.spring_layout(G, seed=42)  # Fixed layout for consistency
@@ -70,15 +77,15 @@ def visualize_topology(connections, output_graph):
     plt.figure(figsize=(12, 8))
     nx.draw(
         G, pos, with_labels=True,
-        node_size=node_size, node_color='skyblue',
+        node_size=node_size, node_color=node_color,
         font_size=8, font_color="black"
     )
 
-    # Draw edge labels (optional: suppress if too cluttered)
+    # Optional: Suppress edge labels if too cluttered
     edge_labels = nx.get_edge_attributes(G, 'label')
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
 
-    plt.title("Enhanced Network Topology")
+    plt.title("Clustered Network Topology")
     plt.savefig(output_graph)
     plt.show()
 
@@ -93,7 +100,7 @@ def main():
 
     # Visualize the topology
     visualize_topology(deduplicated_connections, OUTPUT_GRAPH)
-    print(f"Enhanced topology graph saved to {OUTPUT_GRAPH}")
+    print(f"Clustered topology graph saved to {OUTPUT_GRAPH}")
 
 if __name__ == "__main__":
     main()

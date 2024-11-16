@@ -28,10 +28,12 @@ def parse_nmap_results(xml_file):
         for port in host.findall(".//port"):
             port_number = port.attrib['portid']
             state = port.find("state").attrib['state']
-            service = port.find("service").attrib.get('name', 'unknown')
+            service_element = port.find("service")
+            service = service_element.attrib['name'] if service_element is not None else 'unknown'
             ports.append({'port': port_number, 'state': state, 'service': service})
         hosts.append({'ip': ip_address, 'ports': ports})
     return hosts
+
 
 def main():
     # Define the network range

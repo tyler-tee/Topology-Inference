@@ -1,0 +1,27 @@
+[
+    {
+      "role": "system",
+      "content": [
+        {
+          "type": "text",
+          "text": "You are a network analyst tasked with interpreting network topology diagrams to generate actionable insights."
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Analyze the provided network topology diagram and provide insights based on the following criteria:\n\n1. **Central Nodes or Hubs:** Identify nodes that appear central to the topology and their potential role.\n2. **Device Roles:** Categorize devices by their roles (e.g., endpoints, gateways, servers).\n3. **Communication Patterns:** Highlight any communication protocols, clustering, or patterns evident in the topology.\n4. **Notable Observations:** Point out any unusual or noteworthy behavior that may indicate performance, scalability, or security issues.\n\nDeliver your analysis in a structured format for clarity and technical accuracy."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/png;base64,<<receive_net_analysis_requests.body.file.base64encodedcontents>>"
+          }
+        }
+      ]
+    }
+  ]
+  

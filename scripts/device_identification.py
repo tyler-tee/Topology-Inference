@@ -5,7 +5,8 @@ import requests
 from collections import defaultdict
 
 OUI_CSV_URL = "https://standards-oui.ieee.org/oui/oui.csv"
-DEFAULT_OUI_DATABASE_PATH = "oui.csv"
+DEFAULT_OUI_CSV_PATH = "oui.csv"
+DEFAULT_OUI_JSON_PATH = "oui.json"
 
 
 def download_oui_database(file_path):
@@ -24,27 +25,50 @@ def download_oui_database(file_path):
         raise
 
 
-def load_oui_database(file_path):
+def convert_csv_to_json(csv_path, json_path):
     """
-    Load the OUI database from a CSV file into a dictionary.
+    Convert the OUI CSV database to a JSON file for faster lookups.
     """
-    if not os.path.exists(file_path):
-        print(f"OUI database file not found at {file_path}. Downloading...")
-        download_oui_database(file_path)
-
     oui_dict = {}
     try:
-        with open(file_path, "r") as f:
-            reader = csv.reader(f)
+        with open(csv_path, "r") as csv_file:
+            reader = csv.reader(csv_file)
             next(reader)  # Skip the header
             for row in reader:
                 oui_prefix = row[1].strip().upper()  # OUI prefix
                 vendor_name = row[2].strip()  # Vendor name
                 oui_dict[oui_prefix] = vendor_name
-        return oui_dict
+
+        with open(json_path, "w") as json_file:
+            json.dump(oui_dict, json_file)
+        print(f"Converted OUI CSV to JSON and saved to {json_path}.")
     except Exception as e:
-        print(f"Error loading OUI database: {e}")
-        return {}
+        print(f"Error converting CSV to JSON: {e}")
+        raise
+
+
+def load_oui_database(json_path, csv_path):
+    """
+    Load the OUI database from a JSON file, or convert CSV to JSON if needed.
+    """
+    # Check for JSON file
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as json_file:
+                return json.load(json_file)
+        except Exception as e:
+            print(f"Error loading OUI JSON file: {e}")
+
+    # Fallback to CSV file and convert to JSON
+    if not os.path.exists(csv_path):
+        print(f"OUI database CSV not found. Downloading...")
+        download_oui_database(csv_path)
+
+    # Convert CSV to JSON
+    convert_csv_to_json(csv_path, json_path)
+
+    # Load the newly created JSON file
+    return load_oui_database(json_path, csv_path)
 
 
 def lookup_mac_vendor(mac_address, oui_database):
@@ -128,11 +152,12 @@ def extract_device_data(log_file, oui_database):
 def main():
     # Path to the Suricata eve.json log file
     log_file = "/var/log/suricata/eve.json"  # Update with your actual path
-    # Path to the local OUI database
-    oui_database_path = DEFAULT_OUI_DATABASE_PATH
+    # Paths to the OUI database files
+    oui_csv_path = DEFAULT_OUI_CSV_PATH
+    oui_json_path = DEFAULT_OUI_JSON_PATH
 
     # Load the OUI database
-    oui_data = load_oui_database(oui_database_path)
+    oui_data = load_oui_database(oui_json_path, oui_csv_path)
 
     # Extract and print enriched device data
     device_data = extract_device_data(log_file, oui_data)

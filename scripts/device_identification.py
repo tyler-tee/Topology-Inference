@@ -1,8 +1,6 @@
 import json
-import requests
 from collections import defaultdict
 
-# Function to load MAC vendor data (replace with a proper lookup or API if needed)
 def lookup_mac_vendor(mac_address):
     """
     Perform a MAC vendor lookup using the OUI prefix.
@@ -17,46 +15,52 @@ def lookup_mac_vendor(mac_address):
     }
     return vendor_data.get(mac_prefix, "Unknown Vendor")
 
-# Function to extract and enrich device data from eve.json
 def extract_device_data(log_file):
-    devices = defaultdict(lambda: {"mac": None, "ip": None, "vendor": "Unknown", "activity": []})
+    """
+    Extract devices and activity based on MAC and IP addresses from Suricata logs.
+    """
+    devices = defaultdict(lambda: {
+        "ip": None,
+        "mac": None,
+        "vendor": "Unknown",
+        "traffic": {"bytes_sent": 0, "bytes_received": 0},
+        "activity": []
+    })
 
     try:
         with open(log_file, "r") as f:
             for line in f:
-                # Print raw line for debugging
-                print(line)
-
-                # Parse JSON
                 event = json.loads(line)
 
-                # Print event type
-                event_type = event.get("event_type")
-                print(f"Event Type: {event_type}")
-
-                # Check for MAC addresses
-                src_mac = event.get("src_mac")
-                dest_mac = event.get("dest_mac")
-                print(f"Source MAC: {src_mac}, Destination MAC: {dest_mac}")
-
-                # Only process relevant events
-                if event_type in ["flow", "arp"]:
+                # Only process flow events
+                if event.get("event_type") == "flow":
                     src_ip = event.get("src_ip")
                     dest_ip = event.get("dest_ip")
+                    flow = event.get("flow", {})
+                    ether = event.get("ether", {})
+                    src_macs = ether.get("src_macs", [])
+                    dest_macs = ether.get("dest_macs", [])
 
-                    # Enrich source device
-                    if src_mac:
-                        devices[src_mac]["mac"] = src_mac
+                    bytes_toserver = flow.get("bytes_toserver", 0)
+                    bytes_toclient = flow.get("bytes_toclient", 0)
+
+                    # Process source MAC addresses
+                    for src_mac in src_macs:
+                        if src_mac not in devices:
+                            devices[src_mac]["mac"] = src_mac
+                            devices[src_mac]["vendor"] = lookup_mac_vendor(src_mac)
                         devices[src_mac]["ip"] = src_ip
-                        devices[src_mac]["vendor"] = lookup_mac_vendor(src_mac)
-                        devices[src_mac]["activity"].append(f"Communicated with {dest_ip}")
+                        devices[src_mac]["traffic"]["bytes_sent"] += bytes_toserver
+                        devices[src_mac]["activity"].append(f"Sent {bytes_toserver} bytes to {dest_ip}")
 
-                    # Enrich destination device
-                    if dest_mac:
-                        devices[dest_mac]["mac"] = dest_mac
+                    # Process destination MAC addresses
+                    for dest_mac in dest_macs:
+                        if dest_mac not in devices:
+                            devices[dest_mac]["mac"] = dest_mac
+                            devices[dest_mac]["vendor"] = lookup_mac_vendor(dest_mac)
                         devices[dest_mac]["ip"] = dest_ip
-                        devices[dest_mac]["vendor"] = lookup_mac_vendor(dest_mac)
-                        devices[dest_mac]["activity"].append(f"Communicated with {src_ip}")
+                        devices[dest_mac]["traffic"]["bytes_received"] += bytes_toclient
+                        devices[dest_mac]["activity"].append(f"Received {bytes_toclient} bytes from {src_ip}")
 
         return devices
     except Exception as e:
@@ -66,18 +70,18 @@ def extract_device_data(log_file):
 
 def main():
     # Path to the Suricata eve.json log file
-    log_file = "/var/log/suricata/eve.json"  # Update with your path
+    log_file = "/var/log/suricata/eve.json"  # Update with your actual path
 
     # Extract and print enriched device data
     device_data = extract_device_data(log_file)
     if device_data:
         for mac, data in device_data.items():
-            print(f"MAC: {mac}, IP: {data['ip']}, Vendor: {data['vendor']}")
+            print(f"MAC: {mac}, Vendor: {data['vendor']}, IP: {data['ip']}")
+            print(f"Traffic Sent: {data['traffic']['bytes_sent']} bytes, Received: {data['traffic']['bytes_received']} bytes")
             print("Activity Log:")
             for activity in data["activity"]:
                 print(f"  - {activity}")
 
 
-# Debugging: Print device data
 if __name__ == "__main__":
     main()

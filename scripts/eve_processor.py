@@ -9,7 +9,23 @@ EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
 OUTPUT_GRAPH = "network_topology.png"  # Output graph image
 INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
 EXTERNAL_NODE = "External Network"
-WEBHOOK_URL = ""
+
+
+def load_webhook_url(config_file):
+    """
+    Load the Tines webhook URL from a local JSON configuration file.
+    """
+    try:
+        with open(config_file, "r") as f:
+            config = json.load(f)
+        return config.get("TINES_WEBHOOK_URL")
+    except FileNotFoundError:
+        print(f"Configuration file '{config_file}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error loading webhook URL: {e}")
+        return None
+
 
 def parse_eve_json(eve_log_path):
     """
@@ -128,6 +144,7 @@ def send_to_webhook(image_path, webhook_url):
 
 
 def main():
+    WEBHOOK_URL = load_webhook_url("config.json")
     # Parse Suricata logs
     connections, devices = parse_eve_json(EVE_LOG_PATH)
     print(f"Discovered {len(devices)} devices and {sum(len(v) for v in connections.values())} connections.")

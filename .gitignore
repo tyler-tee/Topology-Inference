@@ -1,3 +1,4 @@
 *.png
 *.xml
 scripts/config.json
+*.md

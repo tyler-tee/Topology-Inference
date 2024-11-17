@@ -19,22 +19,30 @@ def lookup_mac_vendor(mac_address):
 
 # Function to extract and enrich device data from eve.json
 def extract_device_data(log_file):
-    """
-    Extract devices from eve.json and enrich with basic information.
-    """
     devices = defaultdict(lambda: {"mac": None, "ip": None, "vendor": "Unknown", "activity": []})
 
     try:
         with open(log_file, "r") as f:
             for line in f:
+                # Print raw line for debugging
+                print(line)
+
+                # Parse JSON
                 event = json.loads(line)
 
-                # Process ARP or flow events for MAC and IP
-                if event.get("event_type") in ["flow", "arp"]:
+                # Print event type
+                event_type = event.get("event_type")
+                print(f"Event Type: {event_type}")
+
+                # Check for MAC addresses
+                src_mac = event.get("src_mac")
+                dest_mac = event.get("dest_mac")
+                print(f"Source MAC: {src_mac}, Destination MAC: {dest_mac}")
+
+                # Only process relevant events
+                if event_type in ["flow", "arp"]:
                     src_ip = event.get("src_ip")
-                    src_mac = event.get("src_mac")
                     dest_ip = event.get("dest_ip")
-                    dest_mac = event.get("dest_mac")
 
                     # Enrich source device
                     if src_mac:

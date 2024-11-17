@@ -21,30 +21,36 @@ def prepare_summary_payload(log_file):
     """
     Extract relevant network data from a Suricata eve.json log file and structure it for Tines.
     """
-    payload = {"new_devices": [], "traffic": {}, "protocols": {}}
+    payload = {"devices": {}, "protocols": {}}
 
     try:
         with open(log_file, "r") as f:
             for line in f:
                 event = json.loads(line)
 
-                # Skip if not an alert or if missing key fields
+                # Ensure required keys exist
                 if "src_ip" not in event or "dest_ip" not in event:
                     continue
 
                 src_ip = event.get("src_ip")
-                proto = event.get("proto")
+                dest_ip = event.get("dest_ip")
+                proto = event.get("proto", "unknown")
+                bytes_out = event.get("bytes_out", 0)
+                bytes_in = event.get("bytes_in", 0)
+
+                # Track devices
+                if src_ip not in payload["devices"]:
+                    payload["devices"][src_ip] = {"traffic_sent": 0, "traffic_received": 0}
+                if dest_ip not in payload["devices"]:
+                    payload["devices"][dest_ip] = {"traffic_sent": 0, "traffic_received": 0}
+
+                # Aggregate traffic
+                payload["devices"][src_ip]["traffic_sent"] += bytes_out
+                payload["devices"][dest_ip]["traffic_received"] += bytes_in
 
                 # Track protocols
                 if proto:
                     payload["protocols"][proto] = payload["protocols"].get(proto, 0) + 1
-
-                # Aggregate traffic
-                payload["traffic"][src_ip] = payload["traffic"].get(src_ip, 0) + event.get("bytes_out", 0)
-
-                # Track new devices
-                if src_ip not in payload["new_devices"]:
-                    payload["new_devices"].append(src_ip)
 
         return payload
     except Exception as e:
@@ -83,6 +89,10 @@ def main():
         # Prepare the payload
         summary_payload = prepare_summary_payload(log_file)
 
+        # Debugging: Print the payload for validation
+        if summary_payload:
+            print(json.dumps(summary_payload, indent=4))
+        
         # Send the payload if it's not None
         if summary_payload:
             send_to_tines(summary_payload, tines_webhook_url)

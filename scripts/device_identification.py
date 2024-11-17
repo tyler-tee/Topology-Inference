@@ -1,21 +1,54 @@
 import json
+import csv
+import requests
 from collections import defaultdict
 
-def lookup_mac_vendor(mac_address):
-    """
-    Perform a MAC vendor lookup using the OUI prefix.
-    Replace with a vendor API or database for more accurate results.
-    """
-    mac_prefix = mac_address[:8].upper()  # First 8 characters as OUI
-    # Sample vendor mappings; expand or replace with actual data
-    vendor_data = {
-        "00:1A:2B": "Cisco Systems",
-        "D4:6E:0E": "Apple, Inc.",
-        "3C:5A:B4": "Samsung Electronics",
-    }
-    return vendor_data.get(mac_prefix, "Unknown Vendor")
 
-def extract_device_data(log_file):
+def load_oui_database(file_path):
+    """
+    Load the OUI database from a CSV file into a dictionary.
+    """
+    oui_dict = {}
+    try:
+        with open(file_path, "r") as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip the header
+            for row in reader:
+                oui_prefix = row[1].strip().upper()  # OUI prefix
+                vendor_name = row[2].strip()  # Vendor name
+                oui_dict[oui_prefix] = vendor_name
+        return oui_dict
+    except Exception as e:
+        print(f"Error loading OUI database: {e}")
+        return {}
+
+
+def lookup_mac_vendor(mac_address, oui_database):
+    """
+    Look up the MAC vendor locally, with a fallback to the macvendors.com API.
+    """
+    mac_prefix = mac_address[:8].upper().replace(":", "-")  # Format as OUI style
+    # Check local database
+    vendor = oui_database.get(mac_prefix)
+    if vendor:
+        return vendor
+
+    # Fallback to macvendors.com API
+    try:
+        print(f"MAC not found locally. Querying API for: {mac_address}")
+        response = requests.get(f"https://api.macvendors.com/v1/{mac_address}")
+        if response.status_code == 200:
+            vendor = response.text
+            return vendor.strip()
+        else:
+            print(f"API Error: Status {response.status_code}")
+            return "Unknown Vendor"
+    except Exception as e:
+        print(f"API Lookup Error: {e}")
+        return "Unknown Vendor"
+
+
+def extract_device_data(log_file, oui_database):
     """
     Extract devices and activity based on MAC and IP addresses from Suricata logs.
     """
@@ -48,7 +81,7 @@ def extract_device_data(log_file):
                     for src_mac in src_macs:
                         if src_mac not in devices:
                             devices[src_mac]["mac"] = src_mac
-                            devices[src_mac]["vendor"] = lookup_mac_vendor(src_mac)
+                            devices[src_mac]["vendor"] = lookup_mac_vendor(src_mac, oui_database)
                         devices[src_mac]["ip"] = src_ip
                         devices[src_mac]["traffic"]["bytes_sent"] += bytes_toserver
                         devices[src_mac]["activity"].append(f"Sent {bytes_toserver} bytes to {dest_ip}")
@@ -57,7 +90,7 @@ def extract_device_data(log_file):
                     for dest_mac in dest_macs:
                         if dest_mac not in devices:
                             devices[dest_mac]["mac"] = dest_mac
-                            devices[dest_mac]["vendor"] = lookup_mac_vendor(dest_mac)
+                            devices[dest_mac]["vendor"] = lookup_mac_vendor(dest_mac, oui_database)
                         devices[dest_mac]["ip"] = dest_ip
                         devices[dest_mac]["traffic"]["bytes_received"] += bytes_toclient
                         devices[dest_mac]["activity"].append(f"Received {bytes_toclient} bytes from {src_ip}")
@@ -71,9 +104,14 @@ def extract_device_data(log_file):
 def main():
     # Path to the Suricata eve.json log file
     log_file = "/var/log/suricata/eve.json"  # Update with your actual path
+    # Path to the local OUI database
+    oui_database_path = "oui.csv"  # Update with your actual OUI database file path
+
+    # Load the OUI database
+    oui_data = load_oui_database(oui_database_path)
 
     # Extract and print enriched device data
-    device_data = extract_device_data(log_file)
+    device_data = extract_device_data(log_file, oui_data)
     if device_data:
         for mac, data in device_data.items():
             print(f"MAC: {mac}, Vendor: {data['vendor']}, IP: {data['ip']}")

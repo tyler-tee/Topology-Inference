@@ -135,7 +135,7 @@ def send_to_webhook(image_path, webhook_url):
             files = {'file': image_file}
             response = requests.post(webhook_url, files=files)
             if response.status_code == 200:
-                print(f"Diagram successfully sent to webhook: {webhook_url}")
+                print(f"Diagram successfully uploaded!")
             else:
                 print(f"Failed to send diagram. Status code: {response.status_code}")
                 print(f"Response: {response.text}")

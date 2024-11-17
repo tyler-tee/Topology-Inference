@@ -1,6 +1,22 @@
 import json
 import requests
 
+def load_webhook_url(config_file):
+    """
+    Load the Tines webhook URL from a local JSON configuration file.
+    """
+    try:
+        with open(config_file, "r") as f:
+            config = json.load(f)
+        return config.get("TINES_WEBHOOK_URL")
+    except FileNotFoundError:
+        print(f"Configuration file '{config_file}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error loading webhook URL: {e}")
+        return None
+
+
 def prepare_summary_payload(log_file):
     """
     Extract relevant network data from a Suricata eve.json log file and structure it for Tines.
@@ -55,15 +71,21 @@ def main():
     # Path to the Suricata eve.json log file
     log_file = "path/to/eve.json"
 
-    # Your Tines webhook URL
-    tines_webhook_url = "https://your-tines-webhook-url"
+    # Path to the JSON configuration file
+    config_file = "config.json"
 
-    # Prepare the payload
-    summary_payload = prepare_summary_payload(log_file)
+    # Load the webhook URL
+    tines_webhook_url = load_webhook_url(config_file)
 
-    # Send the payload if it's not None
-    if summary_payload:
-        send_to_tines(summary_payload, tines_webhook_url)
+    if not tines_webhook_url:
+        print("Webhook URL could not be loaded. Exiting.")
+    else:
+        # Prepare the payload
+        summary_payload = prepare_summary_payload(log_file)
+
+        # Send the payload if it's not None
+        if summary_payload:
+            send_to_tines(summary_payload, tines_webhook_url)
 
 
 if __name__ == "__main__":

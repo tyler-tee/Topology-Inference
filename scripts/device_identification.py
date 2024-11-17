@@ -4,30 +4,49 @@ import csv
 import requests
 from collections import defaultdict
 
+# Constants
 OUI_CSV_URL = "https://standards-oui.ieee.org/oui/oui.csv"
-DEFAULT_OUI_CSV_PATH = "oui.csv"
-DEFAULT_OUI_JSON_PATH = "oui.json"
+OUI_JSON_PATH = "oui.json"
+DEFAULT_CONFIG_PATH = "config.json"
 
 
-def download_oui_database(file_path):
+# Load Tines Webhook URL
+def load_webhook_url(config_file):
     """
-    Download the OUI database from IEEE if it does not exist locally.
+    Load the Tines webhook URL from a local JSON configuration file.
+    """
+    try:
+        with open(config_file, "r") as f:
+            config = json.load(f)
+        return config.get("TINES_WEBHOOK_URL")
+    except FileNotFoundError:
+        print(f"Configuration file '{config_file}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error loading webhook URL: {e}")
+        return None
+
+
+# Download and Convert OUI Database
+def download_oui_database(csv_path):
+    """
+    Download the OUI database from IEEE.
     """
     try:
         print(f"Downloading OUI database from {OUI_CSV_URL}...")
         response = requests.get(OUI_CSV_URL)
         response.raise_for_status()
-        with open(file_path, "wb") as f:
+        with open(csv_path, "wb") as f:
             f.write(response.content)
-        print(f"OUI database downloaded and saved to {file_path}.")
+        print(f"OUI database downloaded and saved to {csv_path}.")
     except Exception as e:
-        print(f"Failed to download OUI database: {e}")
-        raise
+        print(f"Error downloading OUI database: {e}")
+        raise RuntimeError("Failed to download OUI database.")
 
 
 def convert_csv_to_json(csv_path, json_path):
     """
-    Convert the OUI CSV database to a JSON file for faster lookups.
+    Convert the OUI CSV database to a JSON file.
     """
     oui_dict = {}
     try:
@@ -44,56 +63,35 @@ def convert_csv_to_json(csv_path, json_path):
         print(f"Converted OUI CSV to JSON and saved to {json_path}.")
     except Exception as e:
         print(f"Error converting CSV to JSON: {e}")
-        raise
+        raise RuntimeError("Failed to convert OUI CSV to JSON.")
 
 
-def load_oui_database(json_path, csv_path):
+def load_oui_database(json_path):
     """
-    Load the OUI database from a JSON file, or convert CSV to JSON if needed.
+    Load the OUI database from a JSON file.
     """
-    # Check for JSON file
     if os.path.exists(json_path):
         try:
             with open(json_path, "r") as json_file:
                 return json.load(json_file)
         except Exception as e:
             print(f"Error loading OUI JSON file: {e}")
+            raise RuntimeError("Failed to load OUI database.")
 
-    # Fallback to CSV file and convert to JSON
-    if not os.path.exists(csv_path):
-        print(f"OUI database CSV not found. Downloading...")
-        download_oui_database(csv_path)
-
-    # Convert CSV to JSON
+    # If JSON is missing, fallback to downloading and converting the CSV
+    csv_path = json_path.replace(".json", ".csv")
+    download_oui_database(csv_path)
     convert_csv_to_json(csv_path, json_path)
-
-    # Load the newly created JSON file
-    return load_oui_database(json_path, csv_path)
+    return load_oui_database(json_path)
 
 
+# Enrichment and Data Handling
 def lookup_mac_vendor(mac_address, oui_database):
     """
-    Look up the MAC vendor locally, with a fallback to the macvendors.com API.
+    Look up the MAC vendor using the OUI database.
     """
     mac_prefix = mac_address[:8].upper().replace(":", "-")  # Format as OUI style
-    # Check local database
-    vendor = oui_database.get(mac_prefix)
-    if vendor:
-        return vendor
-
-    # Fallback to macvendors.com API
-    try:
-        print(f"MAC not found locally. Querying API for: {mac_address}")
-        response = requests.get(f"https://api.macvendors.com/v1/{mac_address}")
-        if response.status_code == 200:
-            vendor = response.text
-            return vendor.strip()
-        else:
-            print(f"API Error: Status {response.status_code}")
-            return "Unknown Vendor"
-    except Exception as e:
-        print(f"API Lookup Error: {e}")
-        return "Unknown Vendor"
+    return oui_database.get(mac_prefix, "Unknown Vendor")
 
 
 def extract_device_data(log_file, oui_database):
@@ -149,25 +147,57 @@ def extract_device_data(log_file, oui_database):
         return None
 
 
+def send_to_tines(device_data, webhook_url):
+    """
+    Send the structured device data to Tines for further processing.
+    """
+    # Prepare the payload
+    payload = {
+        "devices": [
+            {
+                "mac": mac,
+                "ip": data["ip"],
+                "vendor": data["vendor"],
+                "traffic": data["traffic"],
+                "activity": data["activity"]
+            }
+            for mac, data in device_data.items()
+        ]
+    }
+
+    # Send data to Tines webhook
+    try:
+        response = requests.post(webhook_url, json=payload)
+        response.raise_for_status()
+        print("Data successfully sent to Tines.")
+    except Exception as e:
+        print(f"Error sending data to Tines: {e}")
+
+
+# Main Script Logic
 def main():
-    # Path to the Suricata eve.json log file
+    # Paths
     log_file = "/var/log/suricata/eve.json"  # Update with your actual path
-    # Paths to the OUI database files
-    oui_csv_path = DEFAULT_OUI_CSV_PATH
-    oui_json_path = DEFAULT_OUI_JSON_PATH
+    config_file = DEFAULT_CONFIG_PATH
+
+    # Load the Tines webhook URL
+    webhook_url = load_webhook_url(config_file)
+    if not webhook_url:
+        print("Webhook URL could not be loaded. Exiting.")
+        return
 
     # Load the OUI database
-    oui_data = load_oui_database(oui_json_path, oui_csv_path)
+    try:
+        oui_data = load_oui_database(OUI_JSON_PATH)
+    except RuntimeError as e:
+        print(e)
+        return
 
-    # Extract and print enriched device data
+    # Extract and send device data
     device_data = extract_device_data(log_file, oui_data)
     if device_data:
-        for mac, data in device_data.items():
-            print(f"MAC: {mac}, Vendor: {data['vendor']}, IP: {data['ip']}")
-            print(f"Traffic Sent: {data['traffic']['bytes_sent']} bytes, Received: {data['traffic']['bytes_received']} bytes")
-            print("Activity Log:")
-            for activity in data["activity"]:
-                print(f"  - {activity}")
+        print("\nSending data to Tines for processing...")
+        send_to_tines(device_data, webhook_url)
 
 
 if __name__ == "__main__":

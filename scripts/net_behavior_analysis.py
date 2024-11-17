@@ -35,8 +35,10 @@ def prepare_summary_payload(log_file):
                 src_ip = event.get("src_ip")
                 dest_ip = event.get("dest_ip")
                 proto = event.get("proto", "unknown")
-                bytes_out = event.get("bytes_out", 0)
-                bytes_in = event.get("bytes_in", 0)
+
+                # Use alternative traffic fields if bytes_out or bytes_in are missing
+                bytes_out = event.get("bytes_out", event.get("flow_bytes_toserver", 0))
+                bytes_in = event.get("bytes_in", event.get("flow_bytes_toclient", 0))
 
                 # Track devices
                 if src_ip not in payload["devices"]:

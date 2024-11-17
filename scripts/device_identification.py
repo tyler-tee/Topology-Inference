@@ -1,13 +1,37 @@
+import os
 import json
 import csv
 import requests
 from collections import defaultdict
+
+OUI_CSV_URL = "https://standards-oui.ieee.org/oui/oui.csv"
+DEFAULT_OUI_DATABASE_PATH = "oui.csv"
+
+
+def download_oui_database(file_path):
+    """
+    Download the OUI database from IEEE if it does not exist locally.
+    """
+    try:
+        print(f"Downloading OUI database from {OUI_CSV_URL}...")
+        response = requests.get(OUI_CSV_URL)
+        response.raise_for_status()
+        with open(file_path, "wb") as f:
+            f.write(response.content)
+        print(f"OUI database downloaded and saved to {file_path}.")
+    except Exception as e:
+        print(f"Failed to download OUI database: {e}")
+        raise
 
 
 def load_oui_database(file_path):
     """
     Load the OUI database from a CSV file into a dictionary.
     """
+    if not os.path.exists(file_path):
+        print(f"OUI database file not found at {file_path}. Downloading...")
+        download_oui_database(file_path)
+
     oui_dict = {}
     try:
         with open(file_path, "r") as f:
@@ -105,7 +129,7 @@ def main():
     # Path to the Suricata eve.json log file
     log_file = "/var/log/suricata/eve.json"  # Update with your actual path
     # Path to the local OUI database
-    oui_database_path = "oui.csv"  # Update with your actual OUI database file path
+    oui_database_path = DEFAULT_OUI_DATABASE_PATH
 
     # Load the OUI database
     oui_data = load_oui_database(oui_database_path)

@@ -1,4 +1,5 @@
 import json
+import requests
 from collections import defaultdict
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ EVE_LOG_PATH = "/var/log/suricata/eve.json"  # Path to eve.json
 OUTPUT_GRAPH = "network_topology.png"  # Output graph image
 INTERNAL_IP_PREFIX = "192.168."  # Filter to include only internal traffic
 EXTERNAL_NODE = "External Network"
+WEBHOOK_URL = ""
 
 def parse_eve_json(eve_log_path):
     """
@@ -107,6 +109,24 @@ def visualize_topology(connections, output_graph):
     plt.savefig(output_graph)
     plt.show()
 
+
+def send_to_webhook(image_path, webhook_url):
+    """
+    Sends the generated topology diagram to a webhook.
+    """
+    try:
+        with open(image_path, 'rb') as image_file:
+            files = {'file': image_file}
+            response = requests.post(webhook_url, files=files)
+            if response.status_code == 200:
+                print(f"Diagram successfully sent to webhook: {webhook_url}")
+            else:
+                print(f"Failed to send diagram. Status code: {response.status_code}")
+                print(f"Response: {response.text}")
+    except Exception as e:
+        print(f"Error sending to webhook: {e}")
+
+
 def main():
     # Parse Suricata logs
     connections, devices = parse_eve_json(EVE_LOG_PATH)
@@ -119,6 +139,10 @@ def main():
     # Visualize the topology
     visualize_topology(deduplicated_connections, OUTPUT_GRAPH)
     print(f"Clustered topology graph saved to {OUTPUT_GRAPH}")
+
+    # Send the diagram to the webhook
+    if WEBHOOK_URL:
+        send_to_webhook(OUTPUT_GRAPH, WEBHOOK_URL)
 
 if __name__ == "__main__":
     main()

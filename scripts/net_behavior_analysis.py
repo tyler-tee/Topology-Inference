@@ -69,7 +69,7 @@ def send_to_tines(payload, webhook_url):
 
 def main():
     # Path to the Suricata eve.json log file
-    log_file = "path/to/eve.json"
+    log_file = "/var/log/suricata/eve.json"  # Change as necessary
 
     # Path to the JSON configuration file
     config_file = "config.json"

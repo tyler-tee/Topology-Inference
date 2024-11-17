@@ -19,45 +19,49 @@ def load_webhook_url(config_file):
 
 def prepare_summary_payload(log_file):
     """
-    Extract relevant network data from a Suricata eve.json log file and structure it for Tines.
+    Extract relevant network data from the latest Suricata stats event and structure it for Tines.
     """
-    payload = {"devices": {}, "protocols": {}}
+    payload = None
 
     try:
         with open(log_file, "r") as f:
             for line in f:
                 event = json.loads(line)
 
-                # Ensure required keys exist
-                if "src_ip" not in event or "dest_ip" not in event:
-                    continue
-
-                src_ip = event.get("src_ip")
-                dest_ip = event.get("dest_ip")
-                proto = event.get("proto", "unknown")
-
-                # Use alternative traffic fields if bytes_out or bytes_in are missing
-                bytes_out = event.get("bytes_out", event.get("flow_bytes_toserver", 0))
-                bytes_in = event.get("bytes_in", event.get("flow_bytes_toclient", 0))
-
-                # Track devices
-                if src_ip not in payload["devices"]:
-                    payload["devices"][src_ip] = {"traffic_sent": 0, "traffic_received": 0}
-                if dest_ip not in payload["devices"]:
-                    payload["devices"][dest_ip] = {"traffic_sent": 0, "traffic_received": 0}
-
-                # Aggregate traffic
-                payload["devices"][src_ip]["traffic_sent"] += bytes_out
-                payload["devices"][dest_ip]["traffic_received"] += bytes_in
-
-                # Track protocols
-                if proto:
-                    payload["protocols"][proto] = payload["protocols"].get(proto, 0) + 1
+                # Process only the latest "stats" event
+                if event.get("event_type") == "stats":
+                    payload = {
+                        "traffic": {
+                            "packets": event.get("stats", {}).get("decoder", {}).get("pkts", 0),
+                            "bytes": event.get("stats", {}).get("decoder", {}).get("bytes", 0)
+                        },
+                        "protocols": {
+                            "tcp": event.get("stats", {}).get("decoder", {}).get("tcp", 0),
+                            "udp": event.get("stats", {}).get("decoder", {}).get("udp", 0),
+                            "icmpv4": event.get("stats", {}).get("decoder", {}).get("icmpv4", 0),
+                            "icmpv6": event.get("stats", {}).get("decoder", {}).get("icmpv6", 0)
+                        },
+                        "app_layers": {
+                            "http": event.get("stats", {}).get("app_layer", {}).get("flow", {}).get("http", 0),
+                            "tls": event.get("stats", {}).get("app_layer", {}).get("flow", {}).get("tls", 0),
+                            "dns": event.get("stats", {}).get("app_layer", {}).get("flow", {}).get("dns_udp", 0)
+                        },
+                        "capture": {
+                            "kernel_packets": event.get("stats", {}).get("capture", {}).get("kernel_packets", 0),
+                            "kernel_drops": event.get("stats", {}).get("capture", {}).get("kernel_drops", 0)
+                        },
+                        "flow": {
+                            "total": event.get("stats", {}).get("flow", {}).get("total", 0),
+                            "tcp": event.get("stats", {}).get("flow", {}).get("tcp", 0),
+                            "udp": event.get("stats", {}).get("flow", {}).get("udp", 0)
+                        }
+                    }
 
         return payload
     except Exception as e:
         print(f"Error preparing summary payload: {e}")
         return None
+
 
 
 def send_to_tines(payload, webhook_url):

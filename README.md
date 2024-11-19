@@ -10,6 +10,9 @@ Objectives:
 - Visualize device relationships and roles.
 - Use an LLM to produce human-readable summaries and recommendations for network analysis.
 
+ ![image](https://github.com/user-attachments/assets/169d724b-1e2f-4eaf-be48-844896e72eac)
+
+
 ---
 
 ## **Features**

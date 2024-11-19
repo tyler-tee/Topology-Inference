@@ -4,6 +4,12 @@ A project dedicated to exploring how to programmatically visualize, understand, 
 
 This project is intended as a proof of concept and a learning tool for those interested in this sort of thing. It is not designed for production environments but rather as a starting point for exploring the intersection of network monitoring, automation, and AI.
 
+## **Objectives**
+
+- Parse and enrich network traffic data.
+- Visualize device relationships and roles.
+- Use an LLM to produce human-readable summaries and recommendations for network analysis.
+
 ---
 
 ## **Features**
@@ -131,6 +137,8 @@ Create a `config.json` file in the project directory:
 
 ### **Network Topology Diagram**
 The `topology_generation.py` script produces a diagram similar to the following:
+ ![image](https://github.com/user-attachments/assets/169d724b-1e2f-4eaf-be48-844896e72eac)
+
 
 ---
 

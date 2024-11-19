@@ -78,6 +78,26 @@ Create a `config.json` file in the project directory:
   - `extract_device_data()`: Extracts device information from `eve.json` logs.
   - `lookup_mac_vendor()`: Resolves MAC vendors using the OUI database or fallback API.
   - `send_to_tines()`: Sends structured data to Tines for LLM analysis.
+- **Example Output**:
+  ```json
+    {
+      "devices": [
+        {
+          "mac": "98:2C:BC:6A:D7:40",
+          "ip": "192.168.1.10",
+          "vendor": "Cisco Systems",
+          "traffic": {
+            "bytes_sent": 12345,
+            "bytes_received": 67890
+          },
+          "activity": [
+            "Sent 12345 bytes to 192.168.1.1",
+            "Received 67890 bytes from 192.168.1.254"
+          ]
+        }
+      ]
+    }
+    ```
 
 ### **2. `topology_generation.py`**
 - **Purpose**: Generates network topology diagrams from Suricata's `eve.json` logs.
@@ -87,6 +107,9 @@ Create a `config.json` file in the project directory:
   - Outputs a PNG diagram (`network_topology.png`) for analysis and reporting.
 - **Usage Notes**:
   - Ensure `eve.json` contains `flow` and `ether` events for accurate topology generation.
+- **Example Output**:
+
+   ![image](https://github.com/user-attachments/assets/169d724b-1e2f-4eaf-be48-844896e72eac)
 
 ### **3. `net_behavior_analysis.py`**
 - **Purpose**: Analyzes network behavioral patterns to identify potential anomalies.
@@ -109,36 +132,6 @@ Create a `config.json` file in the project directory:
     ]
   }
   ```
-
----
-
-## **Example Outputs**
-
-### **Device Identification Structured Payload**
-```json
-{
-  "devices": [
-    {
-      "mac": "98:2C:BC:6A:D7:40",
-      "ip": "192.168.1.10",
-      "vendor": "Cisco Systems",
-      "traffic": {
-        "bytes_sent": 12345,
-        "bytes_received": 67890
-      },
-      "activity": [
-        "Sent 12345 bytes to 192.168.1.1",
-        "Received 67890 bytes from 192.168.1.254"
-      ]
-    }
-  ]
-}
-```
-
-### **Network Topology Diagram**
-The `topology_generation.py` script produces a diagram similar to the following:
- ![image](https://github.com/user-attachments/assets/169d724b-1e2f-4eaf-be48-844896e72eac)
-
 
 ---
 

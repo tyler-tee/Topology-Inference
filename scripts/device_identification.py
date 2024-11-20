@@ -94,6 +94,46 @@ def lookup_mac_vendor(mac_address, oui_database):
     return oui_database.get(mac_prefix, "Unknown Vendor")
 
 
+def process_mac_address(mac_address, devices, ip, traffic_key, traffic_value, activity_message, oui_database):
+    """
+    Process a single MAC address and update device information.
+    """
+    if mac_address not in devices:
+        devices[mac_address]["mac"] = mac_address
+        devices[mac_address]["vendor"] = lookup_mac_vendor(mac_address, oui_database)
+    devices[mac_address]["ip"] = ip
+    devices[mac_address]["traffic"][traffic_key] += traffic_value
+    devices[mac_address]["activity"].append(activity_message)
+
+
+def process_event(event, devices, oui_database):
+    """
+    Process a single Suricata event and update devices information.
+    """
+    src_ip = event.get("src_ip")
+    dest_ip = event.get("dest_ip")
+    flow = event.get("flow", {})
+    ether = event.get("ether", {})
+
+    src_macs = ether.get("src_macs", [])
+    dest_macs = ether.get("dest_macs", [])
+
+    bytes_toserver = flow.get("bytes_toserver", 0)
+    bytes_toclient = flow.get("bytes_toclient", 0)
+
+    # Process source MAC addresses
+    for src_mac in src_macs:
+        activity_message = f"Sent {bytes_toserver} bytes to {dest_ip}"
+        process_mac_address(src_mac, devices, src_ip, "bytes_sent",
+                            bytes_toserver, activity_message, oui_database)
+
+    # Process destination MAC addresses
+    for dest_mac in dest_macs:
+        activity_message = f"Received {bytes_toclient} bytes from {src_ip}"
+        process_mac_address(dest_mac, devices, dest_ip, "bytes_received",
+                            bytes_toclient, activity_message, oui_database)
+
+
 def extract_device_data(log_file, oui_database):
     """
     Extract devices and activity based on MAC and IP addresses from Suricata logs.
@@ -109,37 +149,17 @@ def extract_device_data(log_file, oui_database):
     try:
         with open(log_file, "r") as f:
             for line in f:
-                event = json.loads(line)
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"Skipping invalid JSON line: {e}")
+                    continue
 
                 # Only process flow events
-                if event.get("event_type") == "flow":
-                    src_ip = event.get("src_ip")
-                    dest_ip = event.get("dest_ip")
-                    flow = event.get("flow", {})
-                    ether = event.get("ether", {})
-                    src_macs = ether.get("src_macs", [])
-                    dest_macs = ether.get("dest_macs", [])
+                if event.get("event_type") != "flow":
+                    continue
 
-                    bytes_toserver = flow.get("bytes_toserver", 0)
-                    bytes_toclient = flow.get("bytes_toclient", 0)
-
-                    # Process source MAC addresses
-                    for src_mac in src_macs:
-                        if src_mac not in devices:
-                            devices[src_mac]["mac"] = src_mac
-                            devices[src_mac]["vendor"] = lookup_mac_vendor(src_mac, oui_database)
-                        devices[src_mac]["ip"] = src_ip
-                        devices[src_mac]["traffic"]["bytes_sent"] += bytes_toserver
-                        devices[src_mac]["activity"].append(f"Sent {bytes_toserver} bytes to {dest_ip}")
-
-                    # Process destination MAC addresses
-                    for dest_mac in dest_macs:
-                        if dest_mac not in devices:
-                            devices[dest_mac]["mac"] = dest_mac
-                            devices[dest_mac]["vendor"] = lookup_mac_vendor(dest_mac, oui_database)
-                        devices[dest_mac]["ip"] = dest_ip
-                        devices[dest_mac]["traffic"]["bytes_received"] += bytes_toclient
-                        devices[dest_mac]["activity"].append(f"Received {bytes_toclient} bytes from {src_ip}")
+                process_event(event, devices, oui_database)
 
         return devices
     except Exception as e:

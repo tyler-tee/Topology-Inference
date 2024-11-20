@@ -27,33 +27,52 @@ def load_webhook_url(config_file):
         return None
 
 
+def process_flow_event(event, connections, devices):
+    """
+    Process a single flow event to update connections and devices.
+    """
+    src_ip = event.get("src_ip")
+    dest_ip = event.get("dest_ip")
+    proto = event.get("proto")
+
+    if not src_ip or not dest_ip:
+        return
+
+    # Internal-to-internal traffic
+    if src_ip.startswith(INTERNAL_IP_PREFIX) and dest_ip.startswith(INTERNAL_IP_PREFIX):
+        connections[src_ip].add((dest_ip, proto))
+    else:
+        # External traffic
+        if src_ip.startswith(INTERNAL_IP_PREFIX):
+            connections[src_ip].add((EXTERNAL_NODE, proto))
+        elif dest_ip.startswith(INTERNAL_IP_PREFIX):
+            connections[dest_ip].add((EXTERNAL_NODE, proto))
+
+    # Update the devices set
+    devices.update([src_ip, dest_ip])
+
+
 def parse_eve_json(eve_log_path):
     """
-    Parse Suricata's eve.json to extract connections.
-    :param eve_log_path: Path to eve.json
-    :return: Dictionary of connections and a set of all devices
+    Parse Suricata's eve.json to extract connections and devices.
     """
     connections = defaultdict(set)
     devices = set()
+
     try:
         with open(eve_log_path, "r") as f:
             for line in f:
-                event = json.loads(line.strip())
+                try:
+                    event = json.loads(line.strip())
+                except json.JSONDecodeError as e:
+                    print(f"Skipping invalid JSON: {e}")
+                    continue
+
                 if event.get("event_type") == "flow":  # Focus on flow events
-                    src_ip = event.get("src_ip")
-                    dest_ip = event.get("dest_ip")
-                    proto = event.get("proto")
-                    if src_ip and dest_ip:
-                        if src_ip.startswith(INTERNAL_IP_PREFIX) and dest_ip.startswith(INTERNAL_IP_PREFIX):
-                            connections[src_ip].add((dest_ip, proto))
-                        else:  # Group external traffic
-                            if src_ip.startswith(INTERNAL_IP_PREFIX):
-                                connections[src_ip].add((EXTERNAL_NODE, proto))
-                            elif dest_ip.startswith(INTERNAL_IP_PREFIX):
-                                connections[dest_ip].add((EXTERNAL_NODE, proto))
-                        devices.update([src_ip, dest_ip])
+                    process_flow_event(event, connections, devices)
     except FileNotFoundError:
         print(f"Error: {eve_log_path} not found.")
+
     return connections, devices
 
 

@@ -1,5 +1,8 @@
 **Programmatic Network Inference**
 
+![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=tyler-tee_programmatic-network-inference&metric=alert_status)
+
+
 A project dedicated to exploring how to programmatically visualize, understand, and describe the layout of a network and its inhabitants. By leveraging Suricata, Python, and an LLM of your choosing, these tools may offer a structured approach to analyzing network activity and generating actionable insights.
 
 This project is intended as a proof of concept and a learning tool for those interested in this sort of thing. It is not designed for production environments but rather as a starting point for exploring the intersection of network monitoring, automation, and AI.
